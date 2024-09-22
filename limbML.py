@@ -7,6 +7,7 @@ from sklearn.metrics import accuracy_score, classification_report
 import matplotlib.pyplot as plt
 import seaborn as sns
 import time
+# from xgboost import XGBClassifier
 
 
 def read_csv_file(file_path):
@@ -86,7 +87,70 @@ df['Laterality'] = (df['Laterality'] == 'LEFT_ARM').astype(int)
 df_combined_min['Laterality'] = (
     df_combined_min['Laterality'] == 'LEFT_ARM').astype(int)
 
-print("Combined data (minimum count method):")
-print(df_combined_min)
+# Combine tourniquet and non-tourniquet data
+df_all = pd.concat([df_combined_min, df], ignore_index=True)
 
-print(df)
+# Shuffle the combined dataframe
+df_all = df_all.sample(frac=1, random_state=42).reset_index(drop=True)
+
+
+# Prepare features and target before feature engineering
+X = df_all[['Time', 'PPG', 'Derivative', 'Laterality']]
+y = df_all['is_tourniquet']
+
+# Split the data, stratifying by the target variable
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=42, stratify=y)
+
+# Define a function for feature engineering that doesn't use future information
+
+
+def feature_engineer_no_leakage(df):
+    # Sort by Time within each Laterality group
+    df = df.sort_values(['Laterality', 'Time'])
+
+    # Use only past information for rolling statistics
+    df['PPG_rolling_mean'] = df.groupby('Laterality')['PPG'].rolling(
+        window=10, min_periods=1).mean().reset_index(0, drop=True)
+    df['Derivative_rolling_mean'] = df.groupby('Laterality')['Derivative'].rolling(
+        window=10, min_periods=1).mean().reset_index(0, drop=True)
+
+    # Use shift for rate of change to avoid using future information
+    df['PPG_rate_of_change'] = df.groupby(
+        'Laterality')['PPG'].diff() / df.groupby('Laterality')['Time'].diff()
+    # Replace inf with NaN
+    df = df.replace([np.inf, -np.inf], np.nan)
+
+    return df  # return changes
+
+
+# Apply feature engineering separately to train and test
+X_train = feature_engineer_no_leakage(X_train)
+X_test = feature_engineer_no_leakage(X_test)
+
+# Now select features for modeling
+features = ['PPG', 'Derivative', 'PPG_rolling_mean',
+            'Derivative_rolling_mean', 'PPG_rate_of_change', 'Laterality']
+X_train = X_train[features]
+X_test = X_test[features]
+
+
+# print("Combined data (minimum count method):")
+print(X_train)
+
+print(X_test)
+
+# scalar
+# test model
+
+# Train and evaluate XGBoost model
+# xgb_model = XGBClassifier(enable_categorical=True, random_state=42)
+# xgb_model.fit(X_train, y_train)
+
+# # Make predictions
+# y_pred_xgb = xgb_model.predict(X_test)
+
+# # Evaluate XGBoost model
+# print("XGBoost Results:")
+# print(f"Accuracy: {accuracy_score(y_test, y_pred_xgb)}")
+# print(classification_report(y_test, y_pred_xgb))

@@ -3,6 +3,7 @@ import numpy as np
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import LogisticRegression
+from sklearn.impute import SimpleImputer
 from sklearn.metrics import accuracy_score, classification_report
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -136,9 +137,9 @@ X_test = X_test[features]
 
 
 # print("Combined data (minimum count method):")
-print(X_train)
+# print(X_train)
 
-print(X_test)
+# print(X_test)
 
 # scalar
 # test model
@@ -154,3 +155,26 @@ print(X_test)
 # print("XGBoost Results:")
 # print(f"Accuracy: {accuracy_score(y_test, y_pred_xgb)}")
 # print(classification_report(y_test, y_pred_xgb))
+
+# Prepare data for Logistic Regression
+# Impute NaN values
+imputer = SimpleImputer(strategy='mean')
+X_train_imputed = imputer.fit_transform(X_train)
+X_test_imputed = imputer.transform(X_test)
+
+# Scale the data
+scaler = StandardScaler()
+X_train_scaled = scaler.fit_transform(X_train_imputed)
+X_test_scaled = scaler.transform(X_test_imputed)
+
+# Step 4: Train and evaluate Logistic Regression model
+lr_model = LogisticRegression(random_state=42)
+lr_model.fit(X_train_scaled, y_train)
+
+# Make predictions
+y_pred_lr = lr_model.predict(X_test_scaled)
+
+# Evaluate Logistic Regression model
+print("\nLogistic Regression Results:")
+print(f"Accuracy: {accuracy_score(y_test, y_pred_lr)}")
+print(classification_report(y_test, y_pred_lr))
